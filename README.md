@@ -1,191 +1,239 @@
 
-# 📌 **README — GEE Flood Point Extractor**
+````markdown
+<p align="center">
+  <img src="https://img.shields.io/badge/Google%20Earth%20Engine-Enabled-brightgreen?logo=googleearth" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" />
+  <img src="https://img.shields.io/badge/Resolution-30m-orange" />
+  <img src="https://img.shields.io/badge/Projection-UTM%2045N%20(EPSG%3A32645)-yellow" />
+  <img src="https://img.shields.io/badge/Study%20Area-Rangpur%20Division-red" />
+  <img src="https://img.shields.io/badge/Hydrological%20Predictors-8%20Layers-green" />
+  <img src="https://img.shields.io/badge/Made%20By-Saeed%20Sourav-blueviolet" />
+</p>
 
-## Overview
+# 📘 **README – Hydrological Feature Extraction Pipeline (Google Earth Engine)**
 
-This repository provides a **Google Earth Engine (GEE) script** for generating **stratified validation points** for flood and non-flood areas using **Sentinel-1 SAR GRD (C-band)** imagery. The method computes **pre-flood** and **post-flood** radar backscatter differences (ΔVV), identifies inundated pixels, and extracts an equal number of random points from both classes.
-
-The output is a clean, ready-to-use **CSV file** containing:
-
-* `sample_id`
-* `longitude`
-* `latitude`
-* `flood` (1 = flood, 0 = non-flood)
-
-This dataset is ideal for machine learning, flood model validation, or GIS-based analyses.
-
-**Author:** *Saeed Sourav*
-**Language:** JavaScript (Google Earth Engine Code Editor)
-
----
-
-## ✨ **Key Features**
-
-* Uses Sentinel-1 **SAR GRD VV polarization** (cloud-independent).
-* Performs **pre–post backscatter differencing** (ΔVV).
-* Generates a **flood mask** using a threshold-based approach.
-* Extracts **stratified, balanced random samples** (flood vs. non-flood).
-* Automatically exports results to **Google Drive (CSV)**.
-* AOI simplification prevents memory and timeout issues.
-* Fully reproducible and customizable.
+### **Study Area:** Rangpur Division, Bangladesh  
+### **Author:** *Saeed Sourav (2025)*  
+### **Tools:** Google Earth Engine (JavaScript API)  
+### **Output Resolution:** 30 m  
+### **Projection for Export:** UTM Zone 45N (EPSG:32645)
 
 ---
 
-## 🛰 **Satellite Data**
+## 📌 **Overview**
 
-**Sentinel-1 SAR GRD (C-band)**
-Collection ID: `COPERNICUS/S1_GRD`
+This repository contains a complete **hydrological and environmental predictor extraction pipeline** developed using **Google Earth Engine (GEE)**.  
+The script derives a set of raster layers commonly used for:
 
-Filtering parameters:
+- Flood susceptibility modeling  
+- Hydrological modeling  
+- Land–environmental assessments  
+- Terrain analysis  
 
-* **Instrument mode:** IW
-* **Pass:** DESCENDING
-* **Polarization:** VV
-* **Resolution:** 10 m
-
----
-
-## 📁 **Repository Structure**
-
-```
-gee-flood-point-extractor/
-│
-├── src/
-│   └── flood_point_extractor.js        # Main GEE code
-│
-├── examples/
-│   └── example_output.csv             # Sample generated CSV (optional)
-│
-├── docs/
-│   └── workflow_diagram.png           # Method overview (optional)
-│
-└── README.md
-```
+All outputs are:  
+✔ Clipped to the study area (ROI)  
+✔ Reprojected to **EPSG:32645 (UTM 45N)**  
+✔ Exported as 30-meter resolution GeoTIFFs  
+✔ Derived from globally available, authoritative datasets  
 
 ---
 
-## ⚙️ **How the Script Works**
+## 🎯 **Objectives**
 
-### **1. Load Area of Interest (AOI)**
+This pipeline automates the extraction of **eight hydrological predictors** that are essential for flood susceptibility, watershed analysis, and environmental modeling:
 
-User provides a FeatureCollection asset.
-AOI is simplified to avoid memory overflow.
-
-### **2. Load Sentinel-1 Pre- and Post-flood Images**
-
-Median composites are prepared for:
-
-* Pre-flood period (March–April 2022)
-* Post-flood period (June 2022)
-
-### **3. Compute ΔVV (Backscatter Difference)**
-
-`ΔVV = VV_pre – VV_post`
-Flooded areas show strong backscatter drops.
-
-### **4. Generate Flood Mask**
-
-Flood = ΔVV > threshold
-Default threshold = **2 dB**
-
-### **5. Stratified Random Sampling**
-
-Balanced sample extraction:
-
-* 500 flood points
-* 500 non-flood points
-
-Sampling preserves:
-
-* Randomness
-* Equal representation
-* Spatial geometry
-
-### **6. Extract Coordinates**
-
-Each point receives:
-
-* Sample ID
-* Latitude / Longitude
-
-### **7. Export Output as CSV**
-
-The dataset is automatically saved to Google Drive.
+1. **Digital Elevation Model (DEM)**  
+2. **Slope**  
+3. **Flow Accumulation (log-transformed)**  
+4. **Topographic Wetness Index (TWI)**  
+5. **Distance to River**  
+6. **Monsoon Rainfall (Median 2015–2024)**  
+7. **NDVI (Sentinel-2 median, cloud-masked)**  
+8. **Runoff Score (WorldCover 2021)**  
 
 ---
 
-## 📤 **Exported CSV Format**
+## 🌍 **Study Area (ROI)**
 
-| sample_id | longitude | latitude | flood |
-| --------- | --------- | -------- | ----- |
-| abc123    | 90.1234   | 24.5678  | 1     |
-| xyz987    | 90.2345   | 24.6789  | 0     |
-
----
-
-## 🔧 **User Parameters**
-
-You may edit these at the top of the script:
+The script expects `roi` to be provided as:
 
 ```javascript
-var preStart  = '2022-03-01';
-var preEnd    = '2022-04-15';
-var postStart = '2022-06-16';
-var postEnd   = '2022-06-30';
+var roi = zone.geometry();
+````
 
-var vvDiffThreshold = 2.0;
-var pointsPerClass  = 500;
-var seed            = 42;
-var scale           = 10;
-var exportFolder    = 'GEE_Exports';
-var exportFileName  = 'Flood_NonFlood_Samples_2022';
+The ROI may be uploaded or imported as:
+
+* A Fusion Table
+* A GEE asset (`.geojson`, `.shp`)
+* A manually drawn geometry
+
+The map view centers on the ROI:
+
+```javascript
+Map.centerObject(roi, 8);
 ```
 
 ---
 
-## ▶️ **How to Run in Google Earth Engine**
+## 🧭 **Data Sources & Predictor Variables**
 
-1. Open: [https://code.earthengine.google.com](https://code.earthengine.google.com)
-2. Create a new script.
-3. Paste the `flood_point_extractor.js` code.
-4. Replace your AOI asset:
+### **1. Digital Elevation Model (DEM)**
 
-   ```javascript
-   var aoi = ee.FeatureCollection("users/your_username/your_AOI");
-   ```
-5. Click **Run**.
-6. Go to the **Tasks** panel → click **Run** to start CSV export.
-7. Download from Google Drive.
+* Dataset: **USGS/SRTMGL1_003** (30 m)
+* Slope is derived using `ee.Terrain.slope()`.
 
 ---
 
-## ⚠️ Notes & Limitations
+### **2. Flow Accumulation & TWI**
 
-* If the AOI contains very little flood area, fewer flood points may be produced than requested.
-* Map preview layers may time out for large AOIs, but **exports remain unaffected**.
-* ΔVV threshold may require tuning depending on surface type and flood severity.
+* Dataset: **WWF HydroSHEDS 15ACC**
+* Flow Accumulation → log-transformed
+* Topographic Wetness Index (TWI):
 
----
-
-## 📚 Citation
-
-If this script contributes to your research, please cite:
-
-> Sourav, S. (2025). *GEE Flood Point Extractor: Sentinel-1 SAR-based stratified sampling workflow for flood validation dataset generation*.
-> GitHub Repository.
-
-Also acknowledge:
-
-* Sentinel-1 SAR Mission
-* Google Earth Engine
+  ```
+  TWI = ln(FlowAccum / tan(Slope))
+  ```
+* Clamped between **0–20** for numerical stability.
 
 ---
 
-## 📬 Contact
+### **3. Distance to River**
 
-For improvements, suggestions, or troubleshooting:
-**Saeed Sourav** — Civil Engineer & GIS Analyst
-(Insert your GitHub profile URL or email here.)
+* Dataset: **JRC Global Surface Water Occurrence**
+* Pixels ≥10% occurrence considered perennial water.
+* Euclidean distance computed via `fastDistanceTransform()`.
+
+---
+
+### **4. Monsoon Rainfall (2015–2024 Median)**
+
+* Dataset: **CHIRPS Daily**
+* JJAS rainfall summed per year (June–September).
+* Median across 2015–2024 used.
+
+---
+
+### **5. NDVI (Sentinel-2 Median)**
+
+* Dataset: **COPERNICUS/S2_SR_HARMONIZED**
+* Cloud masking via QA60 bitmasks
+* NDVI computed from median imagery (2020–2024).
+
+---
+
+### **6. Runoff Score (WorldCover 2021)**
+
+Landcover classes are reclassified into hydrological runoff potential.
+
+| Landcover | Score |
+| --------- | ----- |
+| Cropland  | 2     |
+| Trees     | 3     |
+| Grassland | 1     |
+| Shrubland | 1     |
+| Built-up  | 5     |
+| Bare      | 4     |
+| Wetlands  | 6     |
+| Water     | 6     |
+| Snow/Ice  | 6     |
+
+---
+
+## 📤 **Export Configuration**
+
+All rasters are standardized and exported using:
+
+* **CRS:** `EPSG:32645`
+* **Scale:** 30 m
+* **Region:** Clipped strictly to ROI
+
+Export helper:
+
+```javascript
+function prep(img) {
+    return img.toFloat().clip(roi)
+        .reproject({ crs: UTM45, scale: WORK_SCALE });
+}
+```
+
+Export sample:
+
+```javascript
+exportLayer(dem_f, 'DEM');
+```
+
+Exports appear under:
+
+```
+Google Drive → GEE_Exports/
+```
+
+---
+
+## 🖼 **Visualization**
+
+Predictor layers are visualized using:
+
+```javascript
+var roiMask = ee.Image.constant(1).clip(roi);
+
+Map.addLayer(
+    dem.updateMask(roiMask),
+    {min:-7, max:120},
+    'DEM (Clipped)'
+);
+```
+
+This guarantees **no data outside ROI** is displayed.
+
+---
+
+## 📦 **Final Output Layers**
+
+| Predictor         | Filename                        | Resolution | CRS        |
+| ----------------- | ------------------------------- | ---------- | ---------- |
+| DEM               | `DEM_UTM45_30m.tif`             | 30 m       | EPSG:32645 |
+| Slope             | `Slope_UTM45_30m.tif`           | 30 m       | EPSG:32645 |
+| Flow Log          | `FlowLog_UTM45_30m.tif`         | 30 m       | EPSG:32645 |
+| TWI               | `TWI_UTM45_30m.tif`             | 30 m       | EPSG:32645 |
+| Distance to River | `DistanceToRiver_UTM45_30m.tif` | 30 m       | EPSG:32645 |
+| Monsoon Rainfall  | `MonsoonRainfall_UTM45_30m.tif` | 30 m       | EPSG:32645 |
+| NDVI              | `NDVI_UTM45_30m.tif`            | 30 m       | EPSG:32645 |
+| Runoff Score      | `RunoffScore_UTM45_30m.tif`     | 30 m       | EPSG:32645 |
+
+---
+
+## 🧪 **Intended Applications**
+
+This dataset supports:
+
+* AHP-based flood susceptibility modeling
+* Machine learning flood prediction models
+* Hydrological and watershed studies
+* Environmental & terrain analysis
+* Climate–water interaction research
+
+---
+
+## 📚 **Citations**
+
+Please cite the following when using this dataset or script:
+
+* NASA/USGS SRTM
+* WWF HydroSHEDS
+* UCSB-CHG CHIRPS
+* ESA Copernicus Sentinel-2
+* ESA WorldCover 2021
+
+---
+
+## 📬 **Contact**
+
+**Saeed Sourav**
+Civil Engineer
+📧 Email: **[saeedsourav@gmail.com](mailto:saeedsourav@gmail.com)**
+
+```
 
 ---
 
