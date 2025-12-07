@@ -1,14 +1,14 @@
+<div align="center">
 
-````markdown
-<p align="center">
-  <img src="https://img.shields.io/badge/Google%20Earth%20Engine-Enabled-brightgreen?logo=googleearth" />
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" />
-  <img src="https://img.shields.io/badge/Resolution-30m-orange" />
-  <img src="https://img.shields.io/badge/Projection-UTM%2045N%20(EPSG%3A32645)-yellow" />
-  <img src="https://img.shields.io/badge/Study%20Area-Rangpur%20Division-red" />
-  <img src="https://img.shields.io/badge/Hydrological%20Predictors-8%20Layers-green" />
-  <img src="https://img.shields.io/badge/Made%20By-Saeed%20Sourav-blueviolet" />
-</p>
+<img src="https://img.shields.io/badge/Google%20Earth%20Engine-Enabled-brightgreen?logo=googleearth" />
+<img src="https://img.shields.io/badge/License-MIT-blue.svg" />
+<img src="https://img.shields.io/badge/Resolution-30m-orange" />
+<img src="https://img.shields.io/badge/Projection-UTM%2045N%20(EPSG%3A32645)-yellow" />
+<img src="https://img.shields.io/badge/Study%20Area-Rangpur%20Division-red" />
+<img src="https://img.shields.io/badge/Hydrological%20Predictors-8%20Layers-green" />
+<img src="https://img.shields.io/badge/Made%20By-Saeed%20Sourav-blueviolet" />
+
+</div>
 
 # 📘 **README – Hydrological Feature Extraction Pipeline (Google Earth Engine)**
 
