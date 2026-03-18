@@ -6,111 +6,126 @@
  * Author: Saeed Sourav
  ***************************************************************/
 
-// ===================== USER PARAMETERS =======================
-
 var preStart  = '2022-03-01';
 var preEnd    = '2022-04-15';
 var postStart = '2022-06-16';
-var postEnd   = '2022-06-30';
+var postEnd   = '2022-08-30';
 
-var vvDiffThreshold = 2.0;    
-var pointsPerClass  = 500;     
+var vhDiffThreshold = 2.0;
+var pointsPerClass  = 200;
 var seed            = 42;
-var scale           = 10;      
-var crs             = 'EPSG:32645';
+var scale           = 10;
 var exportFolder    = 'GEE_Exports';
-var exportFileName  = 'Flood_NonFlood_Samples_2022';
+var exportFileName  = 'Flood_Samples';
 
-// Optional: Simplify AOI to prevent internal memory errors
-aoi = ee.FeatureCollection(aoi.geometry().simplify(100));
-print("AOI simplified for stability.");
+// ======================= AOI ========================
 
+var region = aoi.geometry().simplify(100);
 
-// ========================= 1. AOI INFO =========================
-Map.centerObject(aoi, 6);
-print("AOI area (km²):", aoi.geometry().area().divide(1e6));
+Map.centerObject(region, 8);
+print("AOI area (km²):", region.area().divide(1e6));
 
+// ========================= LOAD S1 ===========================
 
-// ========================= 2. LOAD S1 =========================
 var s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
-  .filterBounds(aoi)
+  .filterBounds(region)
   .filter(ee.Filter.eq('instrumentMode', 'IW'))
   .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
-  .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
-  .select('VV');
+  .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+  .select('VH');
 
-var pre  = s1.filterDate(preStart, preEnd).median().clip(aoi);
-var post = s1.filterDate(postStart, postEnd).median().clip(aoi);
+var pre = s1
+  .filterDate(preStart, ee.Date(preEnd).advance(1, 'day'))
+  .median()
+  .clip(region);
 
+var post = s1
+  .filterDate(postStart, ee.Date(postEnd).advance(1, 'day'))
+  .median()
+  .clip(region);
 
-// ====================== 3. ΔVV (PRE - POST) ====================
-var vvDiff = pre.subtract(post).rename('vvDiff');
+print('Pre-event image count:',
+  s1.filterDate(preStart, ee.Date(preEnd).advance(1, 'day')).size());
+print('Post-event image count:',
+  s1.filterDate(postStart, ee.Date(postEnd).advance(1, 'day')).size());
 
-Map.addLayer(vvDiff, {min:-5, max:5, palette:['blue','white','red']}, "ΔVV (Pre-Post)");
+// ======================= SPECKLE FILTER ======================
 
+function speckleFilter(img) {
+  return ee.Image(img).focalMean(10, 'circle', 'meters');
+}
 
-// ======================= 4. FLOOD MASK =========================
-var floodMask = vvDiff.gt(vvDiffThreshold).selfMask();
+var preFiltered  = speckleFilter(pre);
+var postFiltered = speckleFilter(post);
+
+// ===================== VH DIFFERENCE =========================
+
+var vhDiff = ee.Image(preFiltered).subtract(postFiltered).rename('vhDiff');
+
+Map.addLayer(vhDiff, {min: -5, max: 5, palette: ['blue', 'white', 'red']}, 'VH Difference');
+
+// ======================= FLOOD MASK ==========================
+
+var floodMask = vhDiff.gt(vhDiffThreshold).selfMask();
 Map.addLayer(floodMask, {palette: ['cyan']}, 'Flood Mask');
 
-// Create binary class: 1 = flood, 0 = non-flood
-var classImage = vvDiff.gt(vvDiffThreshold)
-    .rename('flood')
-    .toByte()
-    .clip(aoi);
+var classImage = vhDiff.gt(vhDiffThreshold)
+  .rename('flood')
+  .toByte()
+  .clip(region);
 
-// ====================== 6. STRATIFIED SAMPLING ==================
-print("Running stratified sampling...");
+// ==================== STRATIFIED SAMPLING ====================
 
 var samples = classImage.stratifiedSample({
-    numPoints: 0,
-    classBand: "flood",
-    region: aoi,
-    scale: scale,
-    classValues: [0, 1],
-    classPoints: [pointsPerClass, pointsPerClass],
-    seed: seed,
-    dropNulls: true,
-    geometries: true
+  numPoints: 0,
+  classBand: 'flood',
+  region: region,
+  scale: scale,
+  classValues: [0, 1],
+  classPoints: [pointsPerClass, pointsPerClass],
+  seed: seed,
+  dropNulls: true,
+  geometries: true
 });
 
-print("Raw sample count:", samples.size());
+print('Raw sample count:', samples.size());
+print('Sample count by class:', samples.aggregate_histogram('flood'));
 
-// Confirm class balance
-var classCount = samples.aggregate_histogram("flood");
-print("Sample count by class:", classCount);
+// ================= COORDINATE EXTRACTION =====================
 
-
-// ==================== 7. FIX COORDINATE EXTRACTION ==================
 var samplesFixed = samples.map(function(f) {
-    var geom = ee.Geometry(f.geometry());
-    var coords = geom.coordinates();
-    return f.set({
-        longitude: coords.get(0),
-        latitude: coords.get(1),
-        sample_id: f.id()
-    });
+  var coords = f.geometry().coordinates();
+  return f.set({
+    sample_id: f.get('system:index'),
+    longitude: coords.get(0),
+    latitude: coords.get(1)
+  });
 });
 
+// ========================= MAP LAYERS ========================
 
-// ======================= 8. MAP LAYERS ==========================
-Map.addLayer(samplesFixed.filter(ee.Filter.eq("flood", 1)), 
-             {color: "blue"}, "Flood Points (1)", false);
+Map.addLayer(
+  samplesFixed.filter(ee.Filter.eq('flood', 1)),
+  {color: 'blue'},
+  'Flood Points (1)',
+  false
+);
 
-Map.addLayer(samplesFixed.filter(ee.Filter.eq("flood", 0)), 
-             {color: "red"}, "Non-Flood Points (0)", false);
+Map.addLayer(
+  samplesFixed.filter(ee.Filter.eq('flood', 0)),
+  {color: 'red'},
+  'Non-Flood Points (0)',
+  false
+);
 
-
-// ======================= 9. EXPORT CSV ==========================
-var exportCols = ['sample_id', 'longitude', 'latitude', 'flood'];
+// ========================= EXPORT CSV ========================
 
 Export.table.toDrive({
-    collection: samplesFixed.select(exportCols),
-    description: exportFileName,
-    folder: exportFolder,
-    fileNamePrefix: exportFileName,
-    fileFormat: "CSV"
+  collection: samplesFixed.select(['sample_id', 'longitude', 'latitude', 'flood']),
+  description: exportFileName,
+  folder: exportFolder,
+  fileNamePrefix: exportFileName,
+  fileFormat: 'CSV'
 });
 
-print("Export task ready in Tasks panel.");
-print("NOTE: If flood area is very small, fewer flood points may be generated.");
+print('Export task ready in Tasks panel.');
