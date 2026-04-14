@@ -7,13 +7,15 @@
   <img src="https://img.shields.io/badge/Author-Saeed%20Sourav-blueviolet?style=flat-square" />
 </p>
 
-# 📘 **GEE Flood Point Extractor – Stratified Flood/Non-Flood Sampling Tool**
 
-### **Author:** *Saeed Sourav (2025)*
+
+# 📘 **GEE Flood Sampling Tool – Sentinel-1 Based Flood/Non-Flood Point Extractor**
+
+### **Author:** *Saeed Sourav (2026)*
 
 ### **Platform:** Google Earth Engine (JavaScript API)
 
-### **Output:** CSV file containing stratified **flood** and **non-flood** validation points
+### **Output:** CSV file containing labeled flood and non-flood sample points
 
 ### **Satellite Data:** Sentinel-1 SAR (VV polarization, IW mode)
 
@@ -21,182 +23,217 @@
 
 ## 📌 **Overview**
 
-This repository provides a complete **flood validation point extraction pipeline** built on **Google Earth Engine (GEE)**.
-The tool generates **balanced, stratified points** for machine-learning model training and validation using **pre- and post-event Sentinel-1 imagery**.
+This repository presents a **Sentinel-1 SAR-based flood detection and sampling framework** developed in **Google Earth Engine (GEE)**. The workflow identifies flood-affected areas using **temporal backscatter change detection** and generates **balanced training/validation datasets** for geospatial modelling.
 
-It is designed for:
+The methodology integrates:
 
+* SAR backscatter differencing
+* Speckle noise reduction using spatial filtering
+* Threshold-based flood delineation
+* Stratified random sampling
+
+The final output is a **CSV dataset of 400 labeled points (Flood/Non-Flood)** suitable for:
+
+* Machine learning models (RF, SVM, XGBoost, ANN)
 * Flood susceptibility mapping
-* Flood extent validation
-* Machine learning flood modelling (RF, XGBoost, ANN, CNN, etc.)
-* Hydrological disaster assessment
-* Change-detection analysis
-
-The script outputs a CSV with the following fields:
-
-| Column    | Description                            |
-| --------- | -------------------------------------- |
-| sample_id | Unique point ID                        |
-| longitude | X coordinate (EPSG:4326)               |
-| latitude  | Y coordinate (EPSG:4326)               |
-| flood     | Class label (1 = flood, 0 = non-flood) |
+* Accuracy assessment and validation
+* Remote sensing-based disaster analysis
 
 ---
 
 ## 🎯 **Key Features**
 
-✔ Automated flood detection using ΔVV (difference in backscatter)
-✔ Uses Sentinel-1 GRD (C-band SAR), unaffected by clouds
-✔ Generates **balanced** classes (equal number of flood and non-flood points)
-✔ User-defined threshold for flood detection
-✔ AOI simplification included to avoid memory issues
-✔ Visual layers for flood mask and sample distribution
-✔ Outputs analysis-ready CSV for ML workflows
+✔ Fully automated flood detection using SAR backscatter difference
+✔ Speckle noise reduction via focal median filtering (30 m radius)
+✔ Threshold-based flood extraction (ΔVV < -3 dB)
+✔ Balanced dataset generation (200 flood + 200 non-flood points)
+✔ High-resolution sampling (10 m) aligned with Sentinel-1
+✔ Clean coordinate extraction (longitude, latitude)
+✔ Class labeling (numeric + descriptive)
+✔ Ready-to-use CSV output for modelling workflows
 
 ---
 
 ## 🗂 **Workflow Summary**
 
-### **1. Load AOI**
+### **1. AOI Preparation**
 
-AOI is simplified to reduce computation time and internal memory errors.
+The Area of Interest (AOI) is simplified to optimize processing and avoid memory limitations:
 
 ```javascript
-aoi = ee.FeatureCollection(aoi.geometry().simplify(100));
+var rangpur = aoi.geometry().simplify(100);
 ```
 
 ---
 
-### **2. Load Sentinel-1 (Pre- & Post-Flood)**
+### **2. Sentinel-1 Data Acquisition**
 
-Filters:
+Filters applied:
 
-* IW mode
-* VV polarization
-* Descending orbit
-
-Median composites are created for the pre-flood and post-flood periods.
-
----
-
-### **3. Compute ΔVV (Pre − Post)**
-
-Flooded surfaces show reduced SAR backscatter.
+* Polarization: VV
+* Instrument mode: IW
+* Spatial filter: AOI
 
 ```javascript
-var vvDiff = pre.subtract(post);
+ee.ImageCollection("COPERNICUS/S1_GRD")
 ```
 
 ---
 
-### **4. Generate Flood Mask**
+### **3. Pre- and Post-Flood Image Selection**
 
-Flood detection based on user-defined threshold:
+| Period     | Date Range              |
+| ---------- | ----------------------- |
+| Pre-Flood  | 2022-05-01 → 2022-05-15 |
+| Post-Flood | 2022-10-01 → 2022-10-30 |
 
-```javascript
-var floodMask = vvDiff.gt(vvDiffThreshold).selfMask();
-```
-
-Binary classification:
-
-* **1 = Flood**
-* **0 = Non-Flood**
+Mosaic images are created for both periods.
 
 ---
 
-### **5. Stratified Sampling**
+### **4. Speckle Noise Reduction**
 
-Balanced sampling:
+A **focal median filter (30 m radius)** is applied:
 
 ```javascript
-classPoints: [pointsPerClass, pointsPerClass]
+focal_median(30, "circle", "meters")
 ```
 
-This ensures equal numbers of flood and non-flood samples.
-
-The script uses high-resolution (**10 m**) sampling to match Sentinel-1 SAR resolution.
+This step improves SAR data quality by reducing speckle noise.
 
 ---
 
-### **6. Extract Clean Coordinates**
+### **5. Flood Detection (Backscatter Difference)**
 
-Coordinates and IDs are reconstructed properly:
+Flooded areas show **reduced backscatter**.
 
 ```javascript
-longitude, latitude, sample_id
+var difference = after_s.subtract(before_s);
+```
+
+Flood condition:
+
+```javascript
+difference < -3
+```
+
+* **Flood = 1**
+* **Non-Flood = 0**
+
+---
+
+### **6. Binary Classification Image**
+
+A clean classification layer is generated using valid pixel masking:
+
+```javascript
+var classImage = flood_extent.rename("class");
 ```
 
 ---
 
-### **7. Export CSV**
+### **7. Stratified Random Sampling**
+
+Balanced sampling ensures equal representation:
+
+```javascript
+classPoints: [200, 200]
+```
+
+* 200 Flood points
+* 200 Non-Flood points
+
+Sampling resolution: **10 meters**
+
+---
+
+### **8. Label Assignment**
+
+Each sample is assigned a descriptive label:
+
+| Class | Label     |
+| ----- | --------- |
+| 1     | Flood     |
+| 0     | Non-Flood |
+
+---
+
+### **9. Coordinate Extraction**
+
+Geographic coordinates are extracted:
+
+```javascript
+longitude, latitude
+```
+
+---
+
+### **10. Export CSV**
 
 Final dataset is exported to Google Drive:
 
 ```
-GEE_Exports/Flood_NonFlood_Samples_2022.csv
+Flood_NonFlood_400_Points_XY.csv
 ```
 
 ---
 
-## 🧪 **User-Configurable Parameters**
+## 📊 **Output Structure**
 
-| Parameter              | Description                          |
-| ---------------------- | ------------------------------------ |
-| `preStart`, `preEnd`   | Pre-flood period                     |
-| `postStart`, `postEnd` | Post-flood period                    |
-| `vvDiffThreshold`      | Sensitivity for flood detection      |
-| `pointsPerClass`       | Number of points per class           |
-| `scale`                | Sampling scale (default 10 m for S1) |
-| `crs`                  | Projection for coordinate extraction |
-| `exportFolder`         | Drive folder for export              |
-| `exportFileName`       | Output CSV filename                  |
-
-You can tune these depending on flood event and geographic context.
+| Column     | Description                              |
+| ---------- | ---------------------------------------- |
+| class      | Numeric label (1 = flood, 0 = non-flood) |
+| class_name | Descriptive label                        |
+| longitude  | X coordinate (EPSG:4326)                 |
+| latitude   | Y coordinate (EPSG:4326)                 |
 
 ---
 
-## 🕹 **Visualization**
+## 🕹 **Visualization Layers**
 
-The script displays:
+The script visualizes:
 
-* ΔVV image
-* Flood mask
-* Flood point locations
-* Non-flood point locations
-
-All layers can be toggled inside the GEE Code Editor.
-
----
-
-## 📦 **Output Example**
-
-A typical exported CSV looks like:
-
-| sample_id | longitude | latitude | flood |
-| --------- | --------- | -------- | ----- |
-| pt_001    | 89.3021   | 25.6823  | 1     |
-| pt_002    | 89.2950   | 25.6742  | 0     |
-| pt_003    | 89.3125   | 25.6901  | 1     |
+* Pre-flood SAR image
+* Post-flood SAR image
+* Backscatter difference layer
+* Flood extent map
+* Classified raster (Flood/Non-Flood)
+* Sample points (Flood = red, Non-Flood = green)
 
 ---
 
-## 🧰 **Applications**
+## ⚙️ **User-Configurable Parameters**
 
-This tool is ideal for:
-
-* Flood susceptibility modelling (AHP, ML, ANN)
-* Validation point generation for remote sensing research
-* Sentinel-1 flood mapping (SAR-based detectors)
-* Dataset creation for academic publications
-* Hydrological and hazard analysis
+| Parameter        | Description                     |
+| ---------------- | ------------------------------- |
+| `date ranges`    | Pre- and post-flood periods     |
+| `threshold (-3)` | Flood detection sensitivity     |
+| `numPoints`      | Total sampling size             |
+| `classPoints`    | Samples per class               |
+| `scale`          | Spatial resolution (10 m)       |
+| `seed`           | Random sampling reproducibility |
 
 ---
 
-## 📚 **References**
+## 🧪 **Applications**
 
-* Copernicus Sentinel-1 SAR GRD
-* Google Earth Engine Developers Guide
-* SAR-based flood mapping literature
+This tool is highly suitable for:
+
+* Flood susceptibility modelling (AHP, F-AHP, ML)
+* Training dataset generation for classification models
+* SAR-based flood extent mapping
+* Accuracy assessment and validation studies
+* GIS-based hazard and risk analysis
+* Academic research and journal publications
+
+---
+
+## 📚 **Scientific Basis**
+
+* Sentinel-1 SAR detects surface roughness and moisture changes
+* Flooded areas produce **lower backscatter values**
+* Temporal differencing enhances flood signal detection
+* Spatial filtering improves classification reliability
 
 ---
 
@@ -205,4 +242,6 @@ This tool is ideal for:
 **Saeed Sourav**
 Civil Engineer | GIS & Remote Sensing Researcher
 📧 **[saeedsourav@gmail.com](mailto:saeedsourav@gmail.com)**
+
+---
 
